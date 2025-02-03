@@ -1,0 +1,70 @@
+name: Build libsfast.so for Android
+
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y git python3 clang cmake ninja-build pkg-config openjdk-17-jdk
+
+      - name: Setup Depot Tools
+        run: |
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          echo "$PWD/depot_tools" >> $GITHUB_PATH
+
+      - name: Clone Kiwi Browser Source
+        run: |
+          mkdir ~/libsfast && cd ~/libsfast
+          git clone --recursive https://github.com/kiwibrowser/src.git src
+          cd src
+          gclient sync --nohooks
+          gclient runhooks
+
+      - name: Configure & Build Minimal Library (ARM)
+        run: |
+          cd ~/libsfast/src
+          gn gen out/Minimal-arm --args="
+          target_os='android'
+          target_cpu='arm'
+          is_debug=false
+          is_official_build=true
+          enable_extensions=true
+          enable_devtools=true
+          enable_webview=true
+          enable_multi_tab=true
+          symbol_level=0
+          strip_debug_info=true
+          "
+          ninja -C out/Minimal-arm libsfast
+
+      - name: Configure & Build Minimal Library (ARM64)
+        run: |
+          cd ~/libsfast/src
+          gn gen out/Minimal-arm64 --args="
+          target_os='android'
+          target_cpu='arm64'
+          is_debug=false
+          is_official_build=true
+          enable_extensions=true
+          enable_devtools=true
+          enable_webview=true
+          enable_multi_tab=true
+          symbol_level=0
+          strip_debug_info=true
+          "
+          ninja -C out/Minimal-arm64 libsfast
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: libsfast
+          path: |
+            ~/libsfast/src/out/Minimal-arm/libsfast.so
+            ~/libsfast/src/out/Minimal-arm64/libsfast.so
